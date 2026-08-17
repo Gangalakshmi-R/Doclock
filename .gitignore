@@ -48,6 +48,8 @@ frontend/dist/
 .vite/
 frontend/.vite/
 
+
+
 # Environment variables
 .env
 .env.*
