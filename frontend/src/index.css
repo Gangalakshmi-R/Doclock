@@ -1,0 +1,29 @@
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: #a7f3d0;
+  color: #064e3b;
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f6faf8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b7d8ca;
+  border-radius: 20px;
+}

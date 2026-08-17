@@ -1,0 +1,45 @@
+package com.doclock.backend.service;
+
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.sax.BodyContentHandler;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+@Service
+public class DocumentTextExtractor {
+
+    public String extractText(Path filePath) throws IOException {
+
+        AutoDetectParser parser = new AutoDetectParser();
+
+        BodyContentHandler handler =
+                new BodyContentHandler(-1);
+
+        Metadata metadata = new Metadata();
+
+        try (InputStream inputStream =
+                     Files.newInputStream(filePath)) {
+
+            try {
+                parser.parse(
+                        inputStream,
+                        handler,
+                        metadata
+                );
+
+                return handler.toString();
+
+            } catch (Exception e) {
+                throw new IOException(
+                        "Failed to extract text from PDF",
+                        e
+                );
+            }
+        }
+    }
+}
