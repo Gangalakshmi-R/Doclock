@@ -1,0 +1,163 @@
+# =========================================================
+# BACKEND - SPRING BOOT / MAVEN
+# =========================================================
+
+# Maven build output
+backend/target/
+
+# Maven local wrapper cache / generated files
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Spring Boot local configuration
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-local.properties
+backend/src/main/resources/application-dev.properties
+backend/src/main/resources/application-prod.properties
+
+# Environment files
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Logs
+backend/*.log
+backend/logs/
+backend/logs/*.log
+
+# Local uploaded documents
+backend/uploads/
+backend/storage/
+
+# Temporary backend files
+backend/tmp/
+backend/temp/
+
+# =========================================================
+# FRONTEND - REACT / VITE / NODE
+# =========================================================
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Production build
+dist/
+frontend/dist/
+
+# Vite cache
+.vite/
+frontend/.vite/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================================================
+# SECRETS / CREDENTIALS
+# =========================================================
+
+# Generic environment files
+.env
+.env.*
+!.env.example
+
+# Private keys / certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Credential files
+credentials.json
+secrets.json
+
+# Generic secret files
+secret*
+secrets*
+
+# =========================================================
+# IDE
+# =========================================================
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+# Keep useful project settings if you want them tracked
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/nbdist/
+
+# =========================================================
+# OPERATING SYSTEM
+# =========================================================
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+
+# =========================================================
+# JAVA
+# =========================================================
+
+*.class
+*.jar
+*.war
+*.ear
+
+# JVM crash logs
+hs_err_pid*
+replay_pid*
+
+# =========================================================
+# DATABASE / LOCAL DATA
+# =========================================================
+
+*.sqlite
+*.sqlite3
+*.db
+
+# Database dumps
+*.dump
+*.sql.gz
+
+# =========================================================
+# GENERAL TEMPORARY FILES
+# =========================================================
+
+*.tmp
+*.temp
+*.swp
+*~
