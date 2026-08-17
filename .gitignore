@@ -44,6 +44,7 @@ frontend/node_modules/
 dist/
 frontend/dist/
 
+
 # Vite cache
 .vite/
 frontend/.vite/
