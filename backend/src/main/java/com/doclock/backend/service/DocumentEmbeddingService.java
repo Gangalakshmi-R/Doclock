@@ -12,6 +12,11 @@ public class DocumentEmbeddingService {
 
     private final JdbcTemplate jdbcTemplate;
 
+
+    // =========================================================
+    // STORE EMBEDDING
+    // =========================================================
+
     public void storeEmbedding(
             Long documentId,
             Integer chunkNumber,
@@ -48,6 +53,26 @@ public class DocumentEmbeddingService {
                 vector
         );
     }
+
+
+    // =========================================================
+    // DELETE ALL EMBEDDINGS FOR DOCUMENT
+    // =========================================================
+
+    public void deleteEmbeddingsByDocumentId(Long documentId) {
+
+        String sql = """
+                DELETE FROM document_embeddings
+                WHERE document_id = ?
+                """;
+
+        jdbcTemplate.update(sql, documentId);
+    }
+
+
+    // =========================================================
+    // CONVERT EMBEDDING TO PGVECTOR FORMAT
+    // =========================================================
 
     private String convertToVectorString(
             float[] embedding) {

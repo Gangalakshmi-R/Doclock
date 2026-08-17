@@ -143,11 +143,11 @@ public class ChatService {
         // 6. SEMANTIC SEARCH
         // =================================================
 
-        List<Map<String, Object>> results =
-                semanticSearchService.search(
-                        retrievalQuery,
-                        3
-                );
+    List<Map<String, Object>> results =
+        semanticSearchService.search(
+                question,
+                6
+        );
 
 
         // =================================================

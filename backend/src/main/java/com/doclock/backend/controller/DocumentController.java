@@ -22,18 +22,20 @@ public class DocumentController {
     // UPLOAD PDF
     // ==========================================
 
-    @PostMapping("/upload")
-    public ResponseEntity<Document> uploadDocument(
-            @RequestParam("file")
-            MultipartFile file
-    ) throws IOException {
+ @PostMapping("/upload")
+public ResponseEntity<Document> uploadDocument(
+        @RequestParam("file") MultipartFile file
+) throws IOException {
 
-        Document document =
-                documentService.uploadDocument(file);
+    System.out.println(
+            ">>> UPLOAD CONTROLLER REACHED"
+    );
 
-        return ResponseEntity.ok(document);
-    }
+    Document document =
+            documentService.uploadDocument(file);
 
+    return ResponseEntity.ok(document);
+}
 
     // ==========================================
     // GET ALL DOCUMENTS

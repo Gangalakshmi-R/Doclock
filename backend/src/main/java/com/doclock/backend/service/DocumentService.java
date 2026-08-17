@@ -5,6 +5,7 @@ import com.doclock.backend.entity.DocumentStatus;
 import com.doclock.backend.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -25,28 +26,37 @@ public class DocumentService {
 
     private final DocumentChunkingService documentChunkingService;
 
-    private final Path uploadDirectory = Paths.get("uploads");
+    private final DocumentEmbeddingService documentEmbeddingService;
+
+    private final Path uploadDirectory =
+            Paths.get("uploads");
 
 
     // =========================================================
     // UPLOAD DOCUMENT
     // =========================================================
 
-    public Document uploadDocument(MultipartFile file) throws IOException {
+    public Document uploadDocument(
+            MultipartFile file
+    ) throws IOException {
 
-        // 1. Check whether file exists
         if (file == null || file.isEmpty()) {
+
             throw new IllegalArgumentException(
                     "File cannot be empty"
             );
         }
 
 
-        // 2. Get original file name
-        String originalFileName = file.getOriginalFilename();
+        // =====================================================
+        // FILE NAME
+        // =====================================================
 
-        if (originalFileName == null ||
-                originalFileName.isBlank()) {
+        String originalFileName =
+                file.getOriginalFilename();
+
+        if (originalFileName == null
+                || originalFileName.isBlank()) {
 
             throw new IllegalArgumentException(
                     "Invalid file name"
@@ -54,10 +64,15 @@ public class DocumentService {
         }
 
 
-        // 3. Validate PDF
-        String fileType = file.getContentType();
+        // =====================================================
+        // VALIDATE PDF
+        // =====================================================
 
-        if (!"application/pdf".equalsIgnoreCase(fileType)) {
+        String fileType =
+                file.getContentType();
+
+        if (!"application/pdf"
+                .equalsIgnoreCase(fileType)) {
 
             throw new IllegalArgumentException(
                     "Only PDF files are allowed"
@@ -65,30 +80,45 @@ public class DocumentService {
         }
 
 
-        // 4. Create uploads directory
-        Files.createDirectories(uploadDirectory);
+        // =====================================================
+        // CREATE UPLOAD DIRECTORY
+        // =====================================================
+
+        Files.createDirectories(
+                uploadDirectory
+        );
 
 
-        // 5. Generate unique file name
+        // =====================================================
+        // UNIQUE FILE NAME
+        // =====================================================
+
         String storedFileName =
                 UUID.randomUUID()
                         + "_"
                         + originalFileName;
 
 
-        // 6. Create physical file path
         Path filePath =
-                uploadDirectory.resolve(storedFileName);
+                uploadDirectory.resolve(
+                        storedFileName
+                );
 
 
-        // 7. Save PDF to uploads folder
+        // =====================================================
+        // SAVE PHYSICAL FILE
+        // =====================================================
+
         Files.copy(
                 file.getInputStream(),
                 filePath
         );
 
 
-        // 8. Create Document object
+        // =====================================================
+        // CREATE DOCUMENT
+        // =====================================================
+
         Document document =
                 Document.builder()
                         .fileName(originalFileName)
@@ -103,7 +133,7 @@ public class DocumentService {
         try {
 
             // =================================================
-            // 9. EXTRACT TEXT USING APACHE TIKA
+            // EXTRACT TEXT
             // =================================================
 
             String extractedText =
@@ -111,8 +141,8 @@ public class DocumentService {
                             .extractText(filePath);
 
 
-            if (extractedText == null ||
-                    extractedText.isBlank()) {
+            if (extractedText == null
+                    || extractedText.isBlank()) {
 
                 throw new IOException(
                         "No readable text found in document"
@@ -121,7 +151,7 @@ public class DocumentService {
 
 
             // =================================================
-            // 10. STORE EXTRACTED TEXT
+            // STORE EXTRACTED TEXT
             // =================================================
 
             document.setExtractedText(
@@ -130,7 +160,7 @@ public class DocumentService {
 
 
             // =================================================
-            // 11. UPDATE STATUS
+            // SET STATUS
             // =================================================
 
             document.setStatus(
@@ -139,39 +169,36 @@ public class DocumentService {
 
 
             // =================================================
-            // 12. SAVE DOCUMENT TO MYSQL
+            // SAVE DOCUMENT
             // =================================================
 
             Document savedDocument =
-                    documentRepository.save(document);
+                    documentRepository.save(
+                            document
+                    );
 
 
             // =================================================
-            // 13. CREATE DOCUMENT CHUNKS
+            // CREATE CHUNKS + EMBEDDINGS
             // =================================================
 
             documentChunkingService
-                    .createChunks(savedDocument);
+                    .createChunks(
+                            savedDocument
+                    );
 
-
-            // =================================================
-            // 14. RETURN DOCUMENT
-            // =================================================
 
             return savedDocument;
 
         } catch (Exception e) {
 
-            // =================================================
-            // PROCESSING FAILED
-            // =================================================
-
             document.setStatus(
                     DocumentStatus.FAILED
             );
 
-            // Save failed status
-            documentRepository.save(document);
+            documentRepository.save(
+                    document
+            );
 
             throw new IOException(
                     "Failed to process document: "
@@ -196,7 +223,9 @@ public class DocumentService {
     // GET DOCUMENT BY ID
     // =========================================================
 
-    public Document getDocumentById(Long id) {
+    public Document getDocumentById(
+            Long id
+    ) {
 
         return documentRepository
                 .findById(id)
@@ -213,14 +242,43 @@ public class DocumentService {
     // DELETE DOCUMENT
     // =========================================================
 
-    public void deleteDocument(Long id) {
+    @Transactional
+    public void deleteDocument(
+            Long id
+    ) {
 
-        // 1. Find document
+        // =====================================================
+        // 1. FIND DOCUMENT
+        // =====================================================
+
         Document document =
                 getDocumentById(id);
 
 
-        // 2. Delete physical PDF
+        // =====================================================
+        // 2. DELETE EMBEDDINGS
+        // =====================================================
+
+        documentEmbeddingService
+                .deleteEmbeddingsByDocumentId(
+                        id
+                );
+
+
+        // =====================================================
+        // 3. DELETE DOCUMENT CHUNKS
+        // =====================================================
+
+        documentChunkingService
+                .deleteChunksByDocumentId(
+                        id
+                );
+
+
+        // =====================================================
+        // 4. DELETE PHYSICAL PDF
+        // =====================================================
+
         try {
 
             if (document.getFilePath() != null) {
@@ -230,7 +288,9 @@ public class DocumentService {
                                 document.getFilePath()
                         );
 
-                Files.deleteIfExists(filePath);
+                Files.deleteIfExists(
+                        filePath
+                );
             }
 
         } catch (IOException e) {
@@ -242,7 +302,12 @@ public class DocumentService {
         }
 
 
-        // 3. Delete database record
-        documentRepository.delete(document);
+        // =====================================================
+        // 5. DELETE DOCUMENT
+        // =====================================================
+
+        documentRepository.delete(
+                document
+        );
     }
 }

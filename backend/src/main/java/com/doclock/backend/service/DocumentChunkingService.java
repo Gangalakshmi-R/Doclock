@@ -17,9 +17,15 @@ public class DocumentChunkingService {
 
     private final DocumentEmbeddingService documentEmbeddingService;
 
+
     private static final int CHUNK_SIZE = 1000;
 
     private static final int CHUNK_OVERLAP = 200;
+
+
+    // =========================================================
+    // CREATE CHUNKS
+    // =========================================================
 
     public List<DocumentChunk> createChunks(Document document) {
 
@@ -31,25 +37,27 @@ public class DocumentChunkingService {
             );
         }
 
-        List<DocumentChunk> chunks = new ArrayList<>();
+        List<DocumentChunk> chunks =
+                new ArrayList<>();
 
         int start = 0;
+
         int chunkNumber = 1;
 
         while (start < text.length()) {
 
-            int end = Math.min(
-                    start + CHUNK_SIZE,
-                    text.length()
-            );
+            int end =
+                    Math.min(
+                            start + CHUNK_SIZE,
+                            text.length()
+                    );
 
-            String chunkText = text
-                    .substring(start, end)
-                    .trim();
+            String chunkText =
+                    text.substring(start, end)
+                            .trim();
 
             if (!chunkText.isBlank()) {
 
-                // Create chunk
                 DocumentChunk chunk =
                         DocumentChunk.builder()
                                 .document(document)
@@ -57,11 +65,9 @@ public class DocumentChunkingService {
                                 .content(chunkText)
                                 .build();
 
-                // Save chunk to PostgreSQL
                 DocumentChunk savedChunk =
                         documentChunkRepository.save(chunk);
 
-                // Generate + store embedding
                 documentEmbeddingService.storeEmbedding(
                         document.getId(),
                         savedChunk.getChunkNumber(),
@@ -75,11 +81,29 @@ public class DocumentChunkingService {
                 break;
             }
 
-            start = end - CHUNK_OVERLAP;
+            start =
+                    end - CHUNK_OVERLAP;
 
             chunkNumber++;
         }
 
         return chunks;
+    }
+
+
+    // =========================================================
+    // DELETE ALL CHUNKS FOR DOCUMENT
+    // =========================================================
+
+    public void deleteChunksByDocumentId(Long documentId) {
+
+        List<DocumentChunk> chunks =
+                documentChunkRepository
+                        .findByDocumentId(documentId);
+
+        if (chunks != null && !chunks.isEmpty()) {
+
+            documentChunkRepository.deleteAll(chunks);
+        }
     }
 }

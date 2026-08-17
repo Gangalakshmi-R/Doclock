@@ -25,46 +25,126 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
-            FilterChain filterChain)
-            throws ServletException, IOException {
+            FilterChain filterChain
+    ) throws ServletException, IOException {
 
         String authorization =
                 request.getHeader("Authorization");
 
+        // =====================================================
+        // TEMPORARY DEBUG
+        // =====================================================
+
+        System.out.println(
+                "JWT REQUEST: "
+                        + request.getMethod()
+                        + " "
+                        + request.getRequestURI()
+                        + " | AUTH HEADER PRESENT: "
+                        + (authorization != null)
+        );
+
+
+        // =====================================================
+        // NO TOKEN
+        // =====================================================
+
         if (authorization == null
                 || !authorization.startsWith("Bearer ")) {
 
-            filterChain.doFilter(request, response);
+            filterChain.doFilter(
+                    request,
+                    response
+            );
+
             return;
         }
+
+
+        // =====================================================
+        // EXTRACT TOKEN
+        // =====================================================
 
         String token =
                 authorization.substring(7);
 
+
         try {
 
-            if (jwtService.isValid(token)) {
+            // =================================================
+            // VALIDATE TOKEN
+            // =================================================
+
+            boolean valid =
+                    jwtService.isValid(token);
+
+
+            System.out.println(
+                    "JWT VALID: "
+                            + valid
+            );
+
+
+            // =================================================
+            // AUTHENTICATE USER
+            // =================================================
+
+            if (valid) {
 
                 String username =
-                        jwtService.extractUsername(token);
+                        jwtService.extractUsername(
+                                token
+                        );
 
-                UsernamePasswordAuthenticationToken authentication =
+
+                System.out.println(
+                        "JWT USERNAME: "
+                                + username
+                );
+
+
+                UsernamePasswordAuthenticationToken
+                        authentication =
+
                         new UsernamePasswordAuthenticationToken(
                                 username,
                                 null,
                                 AuthorityUtils.NO_AUTHORITIES
                         );
 
+
                 SecurityContextHolder
                         .getContext()
-                        .setAuthentication(authentication);
+                        .setAuthentication(
+                                authentication
+                        );
             }
 
         } catch (Exception e) {
 
-            SecurityContextHolder.clearContext();
+            // =================================================
+            // JWT ERROR
+            // =================================================
+
+            System.out.println(
+                    "JWT ERROR: "
+                            + e.getMessage()
+            );
+
+            e.printStackTrace();
+
+            SecurityContextHolder
+                    .clearContext();
         }
 
-        filterChain.doFilter(request, response);
+
+        // =====================================================
+        // CONTINUE FILTER CHAIN
+        // =====================================================
+
+        filterChain.doFilter(
+                request,
+                response
+        );
     }
 }

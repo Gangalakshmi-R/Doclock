@@ -13,4 +13,6 @@ public interface DocumentChunkRepository
     List<DocumentChunk> findByDocument_IdOrderByChunkNumber(
             Long documentId
     );
+
+    List<DocumentChunk> findByDocumentId(Long documentId);
 }
