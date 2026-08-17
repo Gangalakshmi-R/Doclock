@@ -33,6 +33,7 @@ public class ChatService {
         String question = request.getQuestion();
 
         if (question == null || question.isBlank()) {
+
             throw new IllegalArgumentException(
                     "Question cannot be empty"
             );
@@ -40,20 +41,23 @@ public class ChatService {
 
 
         // =================================================
-        // 1. Get existing conversation or create new one
+        // 1. GET EXISTING CONVERSATION OR CREATE NEW ONE
         // =================================================
 
         ChatConversation conversation;
 
         if (request.getConversationId() == null) {
 
-            conversation = createConversation(question);
+            conversation =
+                    createConversation(question);
 
         } else {
 
             conversation =
                     chatConversationRepository
-                            .findById(request.getConversationId())
+                            .findById(
+                                    request.getConversationId()
+                            )
                             .orElseThrow(() ->
                                     new IllegalArgumentException(
                                             "Conversation not found"
@@ -63,7 +67,7 @@ public class ChatService {
 
 
         // =================================================
-        // 2. Save USER message
+        // 2. SAVE USER MESSAGE
         // =================================================
 
         ChatMessage userMessage =
@@ -74,11 +78,13 @@ public class ChatService {
                         .createdAt(LocalDateTime.now())
                         .build();
 
-        chatMessageRepository.save(userMessage);
+        chatMessageRepository.save(
+                userMessage
+        );
 
 
         // =================================================
-        // 3. Get previous conversation history
+        // 3. GET CONVERSATION HISTORY
         // =================================================
 
         List<ChatMessage> previousMessages =
@@ -89,65 +95,7 @@ public class ChatService {
 
 
         // =================================================
-        // 4. Semantic search
-        // =================================================
-
-        List<Map<String, Object>> results =
-                semanticSearchService.search(
-                        question,
-                        3
-                );
-
-
-        // =================================================
-        // 5. No relevant documents
-        // =================================================
-
-        if (results.isEmpty()) {
-
-            String answer =
-                    "I couldn't find relevant information "
-                    + "in your uploaded documents.";
-
-
-            saveAssistantMessage(
-                    conversation,
-                    answer
-            );
-
-
-            return Map.of(
-                    "conversationId",
-                    conversation.getId(),
-
-                    "answer",
-                    answer,
-
-                    "sources",
-                    List.of()
-            );
-        }
-
-
-        // =================================================
-        // 6. Build document context
-        // =================================================
-
-        StringBuilder context =
-                new StringBuilder();
-
-        for (Map<String, Object> result : results) {
-
-            context.append(
-                    result.get("content")
-            );
-
-            context.append("\n\n");
-        }
-
-
-        // =================================================
-        // 7. Build conversation history
+        // 4. BUILD CONVERSATION HISTORY
         // =================================================
 
         StringBuilder history =
@@ -170,7 +118,107 @@ public class ChatService {
 
 
         // =================================================
-        // 8. Generate Gemini answer
+        // 5. BUILD CONTEXT-AWARE RETRIEVAL QUERY
+        //
+        // The current question may contain references such
+        // as:
+        //
+        // "it"
+        // "that"
+        // "when was it"
+        // "who issued it"
+        //
+        // Include recent conversation context so semantic
+        // search understands what the user is referring to.
+        // =================================================
+
+        String retrievalQuery =
+                buildRetrievalQuery(
+                        previousMessages,
+                        question
+                );
+
+
+        // =================================================
+        // 6. SEMANTIC SEARCH
+        // =================================================
+
+        List<Map<String, Object>> results =
+                semanticSearchService.search(
+                        retrievalQuery,
+                        3
+                );
+
+
+        // =================================================
+        // 7. NO RELEVANT DOCUMENTS
+        // =================================================
+
+        if (results.isEmpty()) {
+
+            String answer =
+                    "I couldn't find relevant information "
+                    + "in your uploaded documents.";
+
+            saveAssistantMessage(
+                    conversation,
+                    answer
+            );
+
+            conversation.setUpdatedAt(
+                    LocalDateTime.now()
+            );
+
+            chatConversationRepository.save(
+                    conversation
+            );
+
+            return Map.of(
+                    "conversationId",
+                    conversation.getId(),
+
+                    "answer",
+                    answer,
+
+                    "sources",
+                    List.of()
+            );
+        }
+
+
+        // =================================================
+        // 8. BUILD DOCUMENT CONTEXT
+        // =================================================
+
+        StringBuilder context =
+                new StringBuilder();
+
+        for (Map<String, Object> result : results) {
+
+            Object content =
+                    result.get("content");
+
+            if (content != null) {
+
+                context.append(
+                        content
+                );
+
+                context.append(
+                        "\n\n"
+                );
+            }
+        }
+
+
+        // =================================================
+        // 9. GENERATE GEMINI ANSWER
+        //
+        // IMPORTANT:
+        // Send the ORIGINAL user question to the LLM.
+        //
+        // Retrieval gets the expanded contextual query,
+        // while Gemini sees the actual question + history.
         // =================================================
 
         String answer =
@@ -182,7 +230,7 @@ public class ChatService {
 
 
         // =================================================
-        // 9. Save ASSISTANT message
+        // 10. SAVE ASSISTANT MESSAGE
         // =================================================
 
         saveAssistantMessage(
@@ -192,7 +240,7 @@ public class ChatService {
 
 
         // =================================================
-        // 10. Update conversation timestamp
+        // 11. UPDATE CONVERSATION TIMESTAMP
         // =================================================
 
         conversation.setUpdatedAt(
@@ -205,7 +253,7 @@ public class ChatService {
 
 
         // =================================================
-        // 11. Prepare sources
+        // 12. PREPARE SOURCES
         // =================================================
 
         List<Map<String, Object>> sources =
@@ -231,12 +279,14 @@ public class ChatService {
                     result.get("similarity")
             );
 
-            sources.add(source);
+            sources.add(
+                    source
+            );
         }
 
 
         // =================================================
-        // 12. Final response
+        // 13. FINAL RESPONSE
         // =================================================
 
         return Map.of(
@@ -253,15 +303,99 @@ public class ChatService {
 
 
     // =====================================================
-    // Create new conversation
+    // BUILD CONTEXT-AWARE RETRIEVAL QUERY
+    // =====================================================
+
+    private String buildRetrievalQuery(
+            List<ChatMessage> messages,
+            String currentQuestion
+    ) {
+
+        /*
+         * New conversation:
+         *
+         * Just search the current question.
+         */
+
+        if (messages.size() <= 1) {
+
+            return currentQuestion;
+        }
+
+
+        /*
+         * Existing conversation:
+         *
+         * Include the recent conversation so queries such
+         * as "when did I receive it?" can be connected to
+         * the previous topic.
+         */
+
+        StringBuilder query =
+                new StringBuilder();
+
+        int totalMessages =
+                messages.size();
+
+        /*
+         * Use the most recent few messages rather than the
+         * entire conversation. This prevents very long
+         * conversations from polluting semantic search.
+         */
+
+        int startIndex =
+                Math.max(
+                        0,
+                        totalMessages - 4
+                );
+
+        for (
+                int i = startIndex;
+                i < totalMessages;
+                i++
+        ) {
+
+            ChatMessage message =
+                    messages.get(i);
+
+            query.append(
+                    message.getContent()
+            );
+
+            query.append(
+                    " "
+            );
+        }
+
+
+        /*
+         * Add the current question explicitly.
+         */
+
+        query.append(
+                currentQuestion
+        );
+
+
+        return query.toString().trim();
+    }
+
+
+    // =====================================================
+    // CREATE NEW CONVERSATION
     // =====================================================
 
     private ChatConversation createConversation(
-            String question) {
+            String question
+    ) {
 
-        String title = question.length() > 50
-                ? question.substring(0, 50) + "..."
-                : question;
+        String title =
+                question.length() > 50
+                        ? question.substring(
+                                0,
+                                50
+                        ) + "..."
+                        : question;
 
         LocalDateTime now =
                 LocalDateTime.now();
@@ -280,12 +414,13 @@ public class ChatService {
 
 
     // =====================================================
-    // Save assistant message
+    // SAVE ASSISTANT MESSAGE
     // =====================================================
 
     private void saveAssistantMessage(
             ChatConversation conversation,
-            String answer) {
+            String answer
+    ) {
 
         ChatMessage assistantMessage =
                 ChatMessage.builder()

@@ -20,7 +20,7 @@ public class ConversationController {
 
 
     // =====================================================
-    // Get all conversations
+    // GET ALL CONVERSATIONS
     // =====================================================
 
     @GetMapping
@@ -31,11 +31,11 @@ public class ConversationController {
 
 
     // =====================================================
-    // Get messages of one conversation
+    // GET MESSAGES OF ONE CONVERSATION
     // =====================================================
 
-    @GetMapping("/{id}")
-    public List<ChatMessage> getConversation(
+    @GetMapping("/{id}/messages")
+    public List<ChatMessage> getConversationMessages(
             @PathVariable Long id) {
 
         if (!conversationRepository.existsById(id)) {
@@ -51,7 +51,7 @@ public class ConversationController {
 
 
     // =====================================================
-    // Delete conversation
+    // DELETE CONVERSATION
     // =====================================================
 
     @DeleteMapping("/{id}")
