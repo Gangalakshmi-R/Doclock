@@ -26,13 +26,14 @@ function Login({ onLogin }) {
         try {
 
             const response =
-                await axios.post(
-                    "http://localhost:8080/api/auth/login",
-                    {
-                        username,
-                        password
-                    }
-                );
+                await api.post(
+                        "/auth/login",
+                        {
+                            username,
+                            password
+                        }
+                    );
+
 
 
             const token =
