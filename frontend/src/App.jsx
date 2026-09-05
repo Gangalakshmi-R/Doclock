@@ -301,7 +301,8 @@ function App() {
       );
 
       alert(
-        "Upload failed. Check the browser console."
+        error.response?.data?.message ||
+          "Upload failed. Please try another readable PDF."
       );
     } finally {
       setUploading(false);
@@ -338,9 +339,21 @@ function App() {
         error
       );
 
-      alert(
-        "Failed to delete document."
-      );
+      alert(error.response?.data?.message || "Failed to delete document.");
+    }
+  };
+
+  const viewDocument = async (id) => {
+    try {
+      const response = await api.get(`/documents/${id}/content`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(response.data);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      console.error("View document error:", error);
+      alert("Unable to open this document.");
     }
   };
 
@@ -1026,6 +1039,15 @@ function App() {
                           <div className="pdf-badge">
                             PDF
                           </div>
+
+                          <button
+                            type="button"
+                            className="view-button"
+                            onClick={() => viewDocument(document.id)}
+                            title="View document"
+                          >
+                            View
+                          </button>
 
                           <button
                             type="button"

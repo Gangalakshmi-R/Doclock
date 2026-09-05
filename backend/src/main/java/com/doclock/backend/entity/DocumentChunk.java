@@ -26,4 +26,9 @@ public class DocumentChunk {
     @Lob
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
+
+    /** Serialized embedding kept with the chunk so the RAG pipeline works on any PostgreSQL deployment. */
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String embedding;
 }

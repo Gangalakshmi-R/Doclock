@@ -4,6 +4,9 @@ import com.doclock.backend.entity.Document;
 import com.doclock.backend.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -22,10 +25,6 @@ public ResponseEntity<Document> uploadDocument(
         @RequestParam("file") MultipartFile file
 ) throws IOException {
 
-    System.out.println(
-            ">>> UPLOAD CONTROLLER REACHED"
-    );
-
     Document document =
             documentService.uploadDocument(file);
 
@@ -39,6 +38,17 @@ public ResponseEntity<Document> uploadDocument(
         return ResponseEntity.ok(
                 documentService.getAllDocuments()
         );
+    }
+
+    @GetMapping("/{id}/content")
+    public ResponseEntity<FileSystemResource> viewDocument(@PathVariable Long id) {
+        Document document = documentService.getDocumentById(id);
+        FileSystemResource resource = new FileSystemResource(documentService.getDocumentFile(id));
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"" + document.getFileName().replace("\"", "") + "\"")
+                .body(resource);
     }
 
 

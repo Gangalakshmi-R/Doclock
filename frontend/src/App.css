@@ -868,6 +868,22 @@ input:focus-visible {
   opacity: 1;
 }
 
+.view-button {
+  border: 1px solid #cfe6dd;
+  background: #fff;
+  color: #087d5b;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.view-button:hover {
+  background: #edf9f4;
+}
+
 .document-name {
   margin: 15px 0 6px;
   overflow: hidden;

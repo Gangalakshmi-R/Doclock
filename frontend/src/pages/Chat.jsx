@@ -155,7 +155,7 @@ function Chat({
     window.setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  const formatSimilarity = (value) => {
+  const formatRelevance = (value) => {
     if (value == null) return null;
     return `${(Number(value) * 100).toFixed(1)}%`;
   };
@@ -237,12 +237,12 @@ function Chat({
                           >
                             <div className="source-file-icon">PDF</div>
                             <div className="source-details">
-                              <strong>Document #{source.documentId}</strong>
+                              <strong>{source.documentName || `Document #${source.documentId}`}</strong>
                               <span>Chunk {source.chunkNumber}</span>
                             </div>
-                            {source.similarity != null && (
+                            {source.relevance != null && (
                               <span className="source-score">
-                                {formatSimilarity(source.similarity)}
+                                {formatRelevance(source.relevance)}
                               </span>
                             )}
                           </div>

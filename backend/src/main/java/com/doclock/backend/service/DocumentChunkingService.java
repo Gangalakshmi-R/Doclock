@@ -15,7 +15,7 @@ public class DocumentChunkingService {
 
     private final DocumentChunkRepository documentChunkRepository;
 
-    private final DocumentEmbeddingService documentEmbeddingService;
+    private final EmbeddingService embeddingService;
 
 
     private static final int CHUNK_SIZE = 1000;
@@ -46,11 +46,16 @@ public class DocumentChunkingService {
 
         while (start < text.length()) {
 
-            int end =
-                    Math.min(
-                            start + CHUNK_SIZE,
-                            text.length()
-                    );
+            int end = Math.min(start + CHUNK_SIZE, text.length());
+
+            // Keep chunks semantically coherent where possible instead of
+            // splitting a word or sentence at an arbitrary character.
+            if (end < text.length()) {
+                int boundary = text.lastIndexOf(' ', end);
+                if (boundary > start + CHUNK_SIZE / 2) {
+                    end = boundary;
+                }
+            }
 
             String chunkText =
                     text.substring(start, end)
@@ -58,21 +63,18 @@ public class DocumentChunkingService {
 
             if (!chunkText.isBlank()) {
 
+                float[] embedding = embeddingService.generateEmbedding(chunkText);
+
                 DocumentChunk chunk =
                         DocumentChunk.builder()
-                                .document(document)
-                                .chunkNumber(chunkNumber)
-                                .content(chunkText)
-                                .build();
+                        .document(document)
+                        .chunkNumber(chunkNumber)
+                        .content(chunkText)
+                        .embedding(serializeEmbedding(embedding))
+                        .build();
 
                 DocumentChunk savedChunk =
                         documentChunkRepository.save(chunk);
-
-                documentEmbeddingService.storeEmbedding(
-                        document.getId(),
-                        savedChunk.getChunkNumber(),
-                        savedChunk.getContent()
-                );
 
                 chunks.add(savedChunk);
             }
@@ -105,5 +107,14 @@ public class DocumentChunkingService {
 
             documentChunkRepository.deleteAll(chunks);
         }
+    }
+
+    private String serializeEmbedding(float[] embedding) {
+        StringBuilder value = new StringBuilder();
+        for (int index = 0; index < embedding.length; index++) {
+            if (index > 0) value.append(',');
+            value.append(embedding[index]);
+        }
+        return value.toString();
     }
 }

@@ -1,322 +1,102 @@
 package com.doclock.backend.service;
 
+import com.doclock.backend.entity.DocumentChunk;
+import com.doclock.backend.entity.DocumentStatus;
+import com.doclock.backend.repository.DocumentChunkRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+/** Hybrid RAG: dense semantic similarity plus lexical matching for exact terms. */
 @Service
 @RequiredArgsConstructor
 public class SemanticSearchService {
+    private static final double MIN_RELEVANCE = 0.18;
 
     private final EmbeddingService embeddingService;
-
-    private final JdbcTemplate jdbcTemplate;
-
-
-    // =========================================================
-    // HYBRID SEARCH
-    // =========================================================
-
-    public List<Map<String, Object>> search(
-            String question,
-            int limit) {
-
-        if (question == null || question.isBlank()) {
-            return List.of();
-        }
-
-
-        /*
-         * We retrieve more candidates than the final limit.
-         *
-         * Example:
-         *
-         * limit = 3
-         *
-         * Semantic candidates = 6
-         * Keyword candidates  = 6
-         *
-         * Then merge and return the best results.
-         */
-
-        int candidateLimit =
-                Math.max(limit * 2, 6);
-
-
-        // =====================================================
-        // 1. SEMANTIC SEARCH
-        // =====================================================
-
-        List<Map<String, Object>> semanticResults =
-                semanticSearch(
-                        question,
-                        candidateLimit
-                );
-
-
-        // =====================================================
-        // 2. KEYWORD / FULL-TEXT SEARCH
-        // =====================================================
-
-        List<Map<String, Object>> keywordResults =
-                keywordSearch(
-                        question,
-                        candidateLimit
-                );
-
-
-        // =====================================================
-        // 3. MERGE RESULTS
-        // =====================================================
-
-        /*
-         * LinkedHashMap prevents duplicate chunks.
-         *
-         * Key = embedding row ID.
-         */
-
-        Map<Object, Map<String, Object>> merged =
-                new LinkedHashMap<>();
-
-
-        // Add semantic results first
-        for (Map<String, Object> result :
-                semanticResults) {
-
-            merged.put(
-                    result.get("id"),
-                    result
-            );
-        }
-
-
-        // Add keyword results
-        for (Map<String, Object> result :
-                keywordResults) {
-
-            Object id =
-                    result.get("id");
-
-            /*
-             * If the chunk already exists,
-             * keep the semantic result.
-             *
-             * Otherwise add the keyword result.
-             */
-
-            merged.putIfAbsent(
-                    id,
-                    result
-            );
-        }
-
-
-        // =====================================================
-        // 4. RETURN TOP RESULTS
-        // =====================================================
-
-        List<Map<String, Object>> finalResults =
-                new ArrayList<>(
-                        merged.values()
-                );
-
-
-        if (finalResults.size() > limit) {
-
-            return finalResults.subList(
-                    0,
-                    limit
-            );
-        }
-
-
-        return finalResults;
-    }
-
-
-    // =========================================================
-    // SEMANTIC VECTOR SEARCH
-    // =========================================================
-
-    private List<Map<String, Object>> semanticSearch(
-            String question,
-            int limit) {
-
-
-        // -----------------------------------------------------
-        // Generate question embedding
-        // -----------------------------------------------------
-
-        float[] embedding =
-                embeddingService.generateEmbedding(
-                        question
-                );
-
-
-        // -----------------------------------------------------
-        // Convert to pgvector format
-        // -----------------------------------------------------
-
-        String vector =
-                convertToVectorString(
-                        embedding
-                );
-
-
-        // -----------------------------------------------------
-        // Vector similarity search
-        // -----------------------------------------------------
-
-        String sql = """
-                SELECT
-                    id,
-                    document_id,
-                    chunk_number,
-                    content,
-                    1 - (embedding <=> ?::vector)
-                        AS similarity
-                FROM document_embeddings
-                WHERE 1 - (embedding <=> ?::vector) >= ?
-                ORDER BY embedding <=> ?::vector
-                LIMIT ?
-                """;
-
-
-        /*
-         * Previous threshold:
-         *
-         *     0.30
-         *
-         * We lower it slightly because certificate
-         * questions can use wording different from
-         * the actual document.
-         */
-
-        double similarityThreshold =
-                0.20;
-
-
-        return jdbcTemplate.queryForList(
-                sql,
-
-                vector,
-
-                vector,
-
-                similarityThreshold,
-
-                vector,
-
-                limit
-        );
-    }
-
-
-    // =========================================================
-    // KEYWORD / FULL-TEXT SEARCH
-    // =========================================================
-
-    private List<Map<String, Object>> keywordSearch(
-            String question,
-            int limit) {
-
-
-        /*
-         * PostgreSQL full-text search.
-         *
-         * Example:
-         *
-         * Question:
-         *
-         * "Give me the issue date of Linux certification"
-         *
-         * PostgreSQL searches for important terms such as:
-         *
-         * Linux
-         * issue
-         * date
-         * certification
-         */
-
-        String sql = """
-                SELECT
-                    id,
-                    document_id,
-                    chunk_number,
-                    content,
-
-                    ts_rank(
-                        to_tsvector(
-                            'simple',
-                            content
-                        ),
-                        plainto_tsquery(
-                            'simple',
-                            ?
-                        )
-                    ) AS similarity
-
-                FROM document_embeddings
-
-                WHERE to_tsvector(
-                        'simple',
-                        content
-                      )
-                      @@ plainto_tsquery(
-                          'simple',
-                          ?
-                      )
-
-                ORDER BY similarity DESC
-
-                LIMIT ?
-                """;
-
-
-        return jdbcTemplate.queryForList(
-                sql,
-
-                question,
-
-                question,
-
-                limit
-        );
-    }
-
-
-    // =========================================================
-    // CONVERT EMBEDDING TO PGVECTOR STRING
-    // =========================================================
-
-    private String convertToVectorString(
-            float[] embedding) {
-
-        StringBuilder builder =
-                new StringBuilder("[");
-
-
-        for (int i = 0;
-             i < embedding.length;
-             i++) {
-
-            if (i > 0) {
-                builder.append(",");
+    private final DocumentChunkRepository documentChunkRepository;
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> search(String question, int limit) {
+        if (question == null || question.isBlank() || limit < 1) return List.of();
+
+        float[] queryEmbedding = embeddingService.generateEmbedding(question);
+        Set<String> queryTerms = terms(question);
+        List<SearchResult> ranked = new ArrayList<>();
+
+        for (DocumentChunk chunk : documentChunkRepository.findAll()) {
+            if (chunk.getDocument().getStatus() != DocumentStatus.PROCESSED) continue;
+            double semantic = cosineSimilarity(queryEmbedding, deserialize(chunk.getEmbedding()));
+            double lexical = lexicalScore(queryTerms, terms(chunk.getContent()));
+            // Dense vectors handle paraphrases; lexical matching preserves names and dates.
+            double relevance = (semantic * 0.80) + (lexical * 0.20);
+            if (relevance >= MIN_RELEVANCE || lexical > 0) {
+                ranked.add(new SearchResult(chunk, semantic, lexical, relevance));
             }
-
-            builder.append(
-                    embedding[i]
-            );
         }
 
-
-        builder.append("]");
-
-        return builder.toString();
+        return ranked.stream()
+                .sorted(Comparator.comparingDouble(SearchResult::relevance).reversed())
+                .limit(Math.min(limit, 8))
+                .map(result -> Map.<String, Object>of(
+                        "documentId", result.chunk().getDocument().getId(),
+                        "documentName", result.chunk().getDocument().getFileName(),
+                        "chunkNumber", result.chunk().getChunkNumber(),
+                        "content", result.chunk().getContent(),
+                        "semanticScore", round(result.semantic()),
+                        "keywordScore", round(result.lexical()),
+                        "relevance", round(result.relevance())
+                ))
+                .toList();
     }
+
+    private float[] deserialize(String storedEmbedding) {
+        if (storedEmbedding == null || storedEmbedding.isBlank()) return new float[0];
+        String[] values = storedEmbedding.split(",");
+        float[] embedding = new float[values.length];
+        try {
+            for (int index = 0; index < values.length; index++) embedding[index] = Float.parseFloat(values[index]);
+            return embedding;
+        } catch (NumberFormatException exception) {
+            return new float[0];
+        }
+    }
+
+    private double cosineSimilarity(float[] left, float[] right) {
+        if (left.length == 0 || left.length != right.length) return 0;
+        double dot = 0, leftMagnitude = 0, rightMagnitude = 0;
+        for (int index = 0; index < left.length; index++) {
+            dot += left[index] * right[index];
+            leftMagnitude += left[index] * left[index];
+            rightMagnitude += right[index] * right[index];
+        }
+        if (leftMagnitude == 0 || rightMagnitude == 0) return 0;
+        return Math.max(0, dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude)));
+    }
+
+    private Set<String> terms(String value) {
+        return java.util.Arrays.stream(value.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+"))
+                .filter(term -> term.length() > 2)
+                .collect(Collectors.toSet());
+    }
+
+    private double lexicalScore(Set<String> queryTerms, Set<String> contentTerms) {
+        if (queryTerms.isEmpty()) return 0;
+        long matches = queryTerms.stream().filter(contentTerms::contains).count();
+        return (double) matches / queryTerms.size();
+    }
+
+    private double round(double value) {
+        return Math.round(value * 1000.0) / 1000.0;
+    }
+
+    private record SearchResult(DocumentChunk chunk, double semantic, double lexical, double relevance) { }
 }

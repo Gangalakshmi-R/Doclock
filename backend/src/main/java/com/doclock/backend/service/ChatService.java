@@ -143,11 +143,7 @@ public class ChatService {
         // 6. SEMANTIC SEARCH
         // =================================================
 
-    List<Map<String, Object>> results =
-        semanticSearchService.search(
-                question,
-                6
-        );
+        List<Map<String, Object>> results = semanticSearchService.search(retrievalQuery, 5);
 
 
         // =================================================
@@ -200,13 +196,9 @@ public class ChatService {
 
             if (content != null) {
 
-                context.append(
-                        content
-                );
-
-                context.append(
-                        "\n\n"
-                );
+                context.append("[Source: ").append(result.get("documentName"))
+                        .append(", chunk ").append(result.get("chunkNumber"))
+                        .append("]\n").append(content).append("\n\n");
             }
         }
 
@@ -266,18 +258,20 @@ public class ChatService {
 
             source.put(
                     "documentId",
-                    result.get("document_id")
+                    result.get("documentId")
             );
 
             source.put(
                     "chunkNumber",
-                    result.get("chunk_number")
+                    result.get("chunkNumber")
             );
 
             source.put(
-                    "similarity",
-                    result.get("similarity")
+                    "documentName",
+                    result.get("documentName")
             );
+
+            source.put("relevance", result.get("relevance"));
 
             sources.add(
                     source

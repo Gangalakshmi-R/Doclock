@@ -26,10 +26,8 @@ public class DocumentService {
 
     private final DocumentChunkingService documentChunkingService;
 
-    private final DocumentEmbeddingService documentEmbeddingService;
-
-    private final Path uploadDirectory =
-            Paths.get("uploads");
+    @org.springframework.beans.factory.annotation.Value("${file.upload-dir:uploads}")
+    private String uploadDirectoryPath;
 
 
     // =========================================================
@@ -68,11 +66,10 @@ public class DocumentService {
         // VALIDATE PDF
         // =====================================================
 
-        String fileType =
-                file.getContentType();
+        String fileType = file.getContentType();
 
-        if (!"application/pdf"
-                .equalsIgnoreCase(fileType)) {
+        if (!"application/pdf".equalsIgnoreCase(fileType)
+                || !hasPdfSignature(file)) {
 
             throw new IllegalArgumentException(
                     "Only PDF files are allowed"
@@ -84,19 +81,17 @@ public class DocumentService {
         // CREATE UPLOAD DIRECTORY
         // =====================================================
 
-        Files.createDirectories(
-                uploadDirectory
-        );
+        Path uploadDirectory = Paths.get(uploadDirectoryPath).toAbsolutePath().normalize();
+        Files.createDirectories(uploadDirectory);
 
 
         // =====================================================
         // UNIQUE FILE NAME
         // =====================================================
 
-        String storedFileName =
-                UUID.randomUUID()
-                        + "_"
-                        + originalFileName;
+        String safeFileName = Paths.get(originalFileName).getFileName().toString()
+                .replaceAll("[^a-zA-Z0-9._ -]", "_");
+        String storedFileName = UUID.randomUUID() + "_" + safeFileName;
 
 
         Path filePath =
@@ -109,10 +104,9 @@ public class DocumentService {
         // SAVE PHYSICAL FILE
         // =====================================================
 
-        Files.copy(
-                file.getInputStream(),
-                filePath
-        );
+        try (var inputStream = file.getInputStream()) {
+            Files.copy(inputStream, filePath);
+        }
 
 
         // =====================================================
@@ -163,19 +157,7 @@ public class DocumentService {
             // SET STATUS
             // =================================================
 
-            document.setStatus(
-                    DocumentStatus.PROCESSED
-            );
-
-
-            // =================================================
-            // SAVE DOCUMENT
-            // =================================================
-
-            Document savedDocument =
-                    documentRepository.save(
-                            document
-                    );
+            Document savedDocument = documentRepository.save(document);
 
 
             // =================================================
@@ -186,6 +168,9 @@ public class DocumentService {
                     .createChunks(
                             savedDocument
                     );
+
+            savedDocument.setStatus(DocumentStatus.PROCESSED);
+            documentRepository.save(savedDocument);
 
 
             return savedDocument;
@@ -259,14 +244,8 @@ public class DocumentService {
         // 2. DELETE EMBEDDINGS
         // =====================================================
 
-        documentEmbeddingService
-                .deleteEmbeddingsByDocumentId(
-                        id
-                );
-
-
         // =====================================================
-        // 3. DELETE DOCUMENT CHUNKS
+        // 2. DELETE DOCUMENT CHUNKS (and their embeddings)
         // =====================================================
 
         documentChunkingService
@@ -276,7 +255,7 @@ public class DocumentService {
 
 
         // =====================================================
-        // 4. DELETE PHYSICAL PDF
+        // 3. DELETE PHYSICAL PDF
         // =====================================================
 
         try {
@@ -303,11 +282,31 @@ public class DocumentService {
 
 
         // =====================================================
-        // 5. DELETE DOCUMENT
+        // 4. DELETE DOCUMENT
         // =====================================================
 
         documentRepository.delete(
                 document
         );
+    }
+
+    public Path getDocumentFile(Long id) {
+        Path path = Paths.get(getDocumentById(id).getFilePath()).toAbsolutePath().normalize();
+        if (!Files.isRegularFile(path)) {
+            throw new IllegalArgumentException("The uploaded file is no longer available");
+        }
+        return path;
+    }
+
+    private boolean hasPdfSignature(MultipartFile file) throws IOException {
+        try (var inputStream = file.getInputStream()) {
+            byte[] signature = inputStream.readNBytes(5);
+            return signature.length == 5
+                    && signature[0] == '%'
+                    && signature[1] == 'P'
+                    && signature[2] == 'D'
+                    && signature[3] == 'F'
+                    && signature[4] == '-';
+        }
     }
 }
