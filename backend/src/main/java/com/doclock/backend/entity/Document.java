@@ -1,6 +1,7 @@
 package com.doclock.backend.entity;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -28,6 +29,10 @@ public class Document {
 
     private String filePath;
 
+    @Column(unique = true, length = 64)
+    @JsonIgnore
+    private String checksum;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private DocumentStatus status;
@@ -35,7 +40,14 @@ public class Document {
     @Column(nullable = false)
     private LocalDateTime uploadedAt;
 
+    @Column(length = 600)
+    private String summary;
+
+    @Column(length = 1000)
+    private String processingError;
+
     @Lob
     @Column(columnDefinition = "TEXT")
+    @JsonIgnore
     private String extractedText;
 }

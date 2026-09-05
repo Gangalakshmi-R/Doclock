@@ -108,6 +108,9 @@ public class SecurityConfig {
                                 )
                                 .permitAll()
 
+                                .requestMatchers("/actuator/health/**")
+                                .permitAll()
+
 
                                 // ---------------------------------
                                 // EVERYTHING ELSE

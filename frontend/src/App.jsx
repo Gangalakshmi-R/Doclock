@@ -21,6 +21,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [documentQuery, setDocumentQuery] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [currentPage, setCurrentPage] = useState("documents");
 
@@ -49,13 +50,15 @@ function App() {
   // FETCH DOCUMENTS
   // =========================================================
 
-  const fetchDocuments = useCallback(async () => {
+  const fetchDocuments = useCallback(async (query = "") => {
     if (!isAuthenticated) return;
 
     try {
       setLoadingDocuments(true);
 
-      const response = await api.get("/documents");
+      const response = await api.get("/documents", {
+        params: query.trim() ? { query: query.trim() } : undefined,
+      });
 
       setDocuments(
         Array.isArray(response.data)
@@ -120,6 +123,12 @@ function App() {
       fetchDocuments();
     }
   }, [isAuthenticated, fetchDocuments]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const timer = window.setTimeout(() => fetchDocuments(documentQuery), 250);
+    return () => window.clearTimeout(timer);
+  }, [documentQuery, isAuthenticated, fetchDocuments]);
 
   // =========================================================
   // LOAD CHAT HISTORY WHEN CHAT IS OPEN
@@ -220,8 +229,14 @@ function App() {
   const selectFile = (file) => {
     if (!file) return;
 
-    if (file.type !== "application/pdf") {
-      alert("Only PDF files are allowed.");
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    const supportedExtensions = [
+      "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+      "txt", "csv", "rtf", "odt", "ods", "odp",
+    ];
+
+    if (!supportedExtensions.includes(extension)) {
+      alert("Upload a PDF, Word, Excel, PowerPoint, text, CSV, RTF, or OpenDocument file.");
       return;
     }
 
@@ -867,7 +882,7 @@ function App() {
 
                     <h4>
                       Drag &amp; drop
-                      your PDF here
+                      your document here
                     </h4>
 
                     <p>
@@ -878,7 +893,7 @@ function App() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="application/pdf"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp"
                       onChange={
                         handleFileChange
                       }
@@ -896,7 +911,7 @@ function App() {
                     </button>
 
                     <span className="file-hint">
-                      PDF files only
+                      PDF, Office, text, CSV &amp; OpenDocument files
                     </span>
 
                   </>
@@ -985,6 +1000,15 @@ function App() {
                   {documents.length}
                 </div>
 
+                <input
+                  className="document-search"
+                  type="search"
+                  value={documentQuery}
+                  onChange={(event) => setDocumentQuery(event.target.value)}
+                  placeholder="Search documents..."
+                  aria-label="Search documents by filename"
+                />
+
               </div>
 
               {loadingDocuments ? (
@@ -1037,7 +1061,7 @@ function App() {
                         <div className="card-top">
 
                           <div className="pdf-badge">
-                            PDF
+                            {document.fileName?.split(".").pop()?.toUpperCase() || "DOC"}
                           </div>
 
                           <button

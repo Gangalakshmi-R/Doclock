@@ -4,6 +4,7 @@ import com.doclock.backend.dto.ChatRequest;
 import com.doclock.backend.service.ChatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.Map;
 
@@ -17,7 +18,7 @@ public class ChatController {
 
     @PostMapping
     public Map<String, Object> chat(
-            @RequestBody ChatRequest request) {
+            @Valid @RequestBody ChatRequest request) {
 
         return chatService.chat(request);
     }

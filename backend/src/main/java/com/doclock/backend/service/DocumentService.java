@@ -14,7 +14,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +28,8 @@ public class DocumentService {
     private final DocumentTextExtractor documentTextExtractor;
 
     private final DocumentChunkingService documentChunkingService;
+
+    private final DocumentFactService documentFactService;
 
     @org.springframework.beans.factory.annotation.Value("${file.upload-dir:uploads}")
     private String uploadDirectoryPath;
@@ -63,16 +68,15 @@ public class DocumentService {
 
 
         // =====================================================
-        // VALIDATE PDF
+        // VALIDATE SUPPORTED DOCUMENT TYPE
         // =====================================================
 
-        String fileType = file.getContentType();
+        String fileType = detectContentType(file, originalFileName);
 
-        if (!"application/pdf".equalsIgnoreCase(fileType)
-                || !hasPdfSignature(file)) {
+        if (!isSupportedDocument(fileType, originalFileName)) {
 
             throw new IllegalArgumentException(
-                    "Only PDF files are allowed"
+                    "Supported formats: PDF, Word, Excel, PowerPoint, text, CSV, and OpenDocument files"
             );
         }
 
@@ -108,6 +112,11 @@ public class DocumentService {
             Files.copy(inputStream, filePath);
         }
 
+        String checksum = calculateChecksum(file);
+        documentRepository.findByChecksum(checksum).ifPresent(existing -> {
+            throw new IllegalArgumentException("This exact file is already in your vault: " + existing.getFileName());
+        });
+
 
         // =====================================================
         // CREATE DOCUMENT
@@ -119,6 +128,7 @@ public class DocumentService {
                         .fileType(fileType)
                         .fileSize(file.getSize())
                         .filePath(filePath.toString())
+                        .checksum(checksum)
                         .status(DocumentStatus.PROCESSING)
                         .uploadedAt(LocalDateTime.now())
                         .build();
@@ -151,6 +161,7 @@ public class DocumentService {
             document.setExtractedText(
                     extractedText
             );
+            document.setSummary(createSummary(extractedText));
 
 
             // =================================================
@@ -169,6 +180,8 @@ public class DocumentService {
                             savedDocument
                     );
 
+            documentFactService.extractAndSaveFacts(savedDocument);
+
             savedDocument.setStatus(DocumentStatus.PROCESSED);
             documentRepository.save(savedDocument);
 
@@ -180,6 +193,7 @@ public class DocumentService {
             document.setStatus(
                     DocumentStatus.FAILED
             );
+            document.setProcessingError("Document processing failed. Upload a readable, text-based document and try again.");
 
             documentRepository.save(
                     document
@@ -198,9 +212,11 @@ public class DocumentService {
     // GET ALL DOCUMENTS
     // =========================================================
 
-    public List<Document> getAllDocuments() {
-
-        return documentRepository.findAll();
+    public List<Document> getAllDocuments(String query) {
+        if (query == null || query.isBlank()) {
+            return documentRepository.findAllByOrderByUploadedAtDesc();
+        }
+        return documentRepository.findByFileNameContainingIgnoreCaseOrderByUploadedAtDesc(query.trim());
     }
 
 
@@ -253,6 +269,8 @@ public class DocumentService {
                         id
                 );
 
+        documentFactService.deleteFactsByDocumentId(id);
+
 
         // =====================================================
         // 3. DELETE PHYSICAL PDF
@@ -298,15 +316,37 @@ public class DocumentService {
         return path;
     }
 
-    private boolean hasPdfSignature(MultipartFile file) throws IOException {
+    private String detectContentType(MultipartFile file, String fileName) throws IOException {
         try (var inputStream = file.getInputStream()) {
-            byte[] signature = inputStream.readNBytes(5);
-            return signature.length == 5
-                    && signature[0] == '%'
-                    && signature[1] == 'P'
-                    && signature[2] == 'D'
-                    && signature[3] == 'F'
-                    && signature[4] == '-';
+            String detected = new org.apache.tika.Tika().detect(inputStream, fileName);
+            return detected == null || detected.isBlank() ? "application/octet-stream" : detected;
         }
+    }
+
+    private boolean isSupportedDocument(String contentType, String fileName) {
+        String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+        return Set.of("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv", "rtf", "odt", "ods", "odp")
+                .contains(extension)
+                || Set.of("application/pdf", "text/plain", "text/csv", "application/rtf",
+                        "application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet",
+                        "application/vnd.oasis.opendocument.presentation").contains(contentType);
+    }
+
+    private String calculateChecksum(MultipartFile file) throws IOException {
+        try (var inputStream = file.getInputStream()) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192];
+            for (int read; (read = inputStream.read(buffer)) != -1;) digest.update(buffer, 0, read);
+            return java.util.HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
+        }
+    }
+
+    private String createSummary(String text) {
+        String normalized = text.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 500) return normalized;
+        int boundary = normalized.lastIndexOf(' ', 500);
+        return normalized.substring(0, boundary > 100 ? boundary : 500) + "...";
     }
 }

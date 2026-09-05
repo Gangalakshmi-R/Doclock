@@ -15,6 +15,15 @@ Boot, PostgreSQL, and Google GenAI.
 5. The LLM receives only the highest-ranked, labelled source chunks and is
    instructed to answer from evidence rather than invent facts.
 
+## Structured document intelligence
+
+In addition to semantic chunks, DocLock extracts high-value fields with source
+provenance: Aadhaar/ID candidates, certificate and registration numbers,
+renewal/expiry dates, PAN, email, and phone numbers. This gives direct factual
+questions an evidence-backed structured path while general questions continue
+through hybrid RAG. Sensitive Aadhaar and PAN values are masked by default and
+can be explicitly requested in full by the authenticated vault owner.
+
 ## Concepts to explain in an interview
 
 - **Embeddings:** numeric semantic representations that make paraphrases

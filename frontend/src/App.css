@@ -805,6 +805,21 @@ input:focus-visible {
   margin-bottom: 15px;
 }
 
+.document-search {
+  margin-left: auto;
+  min-width: 180px;
+  border: 1px solid #d8e6e0;
+  border-radius: 9px;
+  padding: 0.55rem 0.7rem;
+  color: var(--text);
+  background: #fff;
+}
+
+.document-search:focus {
+  outline: 2px solid rgba(7, 159, 114, 0.2);
+  border-color: #079f72;
+}
+
 .count {
   min-width: 34px;
   height: 34px;

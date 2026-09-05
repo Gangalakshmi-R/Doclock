@@ -33,10 +33,10 @@ public ResponseEntity<Document> uploadDocument(
 
     @GetMapping
     public ResponseEntity<List<Document>>
-    getAllDocuments() {
+    getAllDocuments(@RequestParam(required = false) String query) {
 
         return ResponseEntity.ok(
-                documentService.getAllDocuments()
+                documentService.getAllDocuments(query)
         );
     }
 
@@ -44,8 +44,14 @@ public ResponseEntity<Document> uploadDocument(
     public ResponseEntity<FileSystemResource> viewDocument(@PathVariable Long id) {
         Document document = documentService.getDocumentById(id);
         FileSystemResource resource = new FileSystemResource(documentService.getDocumentFile(id));
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(document.getFileType());
+        } catch (Exception exception) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
         return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
+                .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"" + document.getFileName().replace("\"", "") + "\"")
                 .body(resource);

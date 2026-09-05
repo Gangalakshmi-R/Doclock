@@ -2,6 +2,7 @@ package com.doclock.backend.service;
 
 import com.doclock.backend.dto.ChatRequest;
 import com.doclock.backend.entity.ChatConversation;
+import com.doclock.backend.entity.DocumentFact;
 import com.doclock.backend.entity.ChatMessage;
 import com.doclock.backend.entity.MessageRole;
 import com.doclock.backend.repository.ChatConversationRepository;
@@ -26,6 +27,8 @@ public class ChatService {
     private final ChatConversationRepository chatConversationRepository;
 
     private final ChatMessageRepository chatMessageRepository;
+
+    private final DocumentFactService documentFactService;
 
 
     public Map<String, Object> chat(ChatRequest request) {
@@ -144,13 +147,15 @@ public class ChatService {
         // =================================================
 
         List<Map<String, Object>> results = semanticSearchService.search(retrievalQuery, 5);
+        boolean revealSensitive = question.toLowerCase().matches(".*\\b(full|complete|unmasked|entire)\\b.*");
+        List<DocumentFact> facts = documentFactService.findRelevantFacts(question);
 
 
         // =================================================
         // 7. NO RELEVANT DOCUMENTS
         // =================================================
 
-        if (results.isEmpty()) {
+        if (results.isEmpty() && facts.isEmpty()) {
 
             String answer =
                     "I couldn't find relevant information "
@@ -186,8 +191,7 @@ public class ChatService {
         // 8. BUILD DOCUMENT CONTEXT
         // =================================================
 
-        StringBuilder context =
-                new StringBuilder();
+        StringBuilder context = new StringBuilder(documentFactService.toContext(facts, revealSensitive));
 
         for (Map<String, Object> result : results) {
 
@@ -220,7 +224,9 @@ public class ChatService {
         } catch (Exception exception) {
             // The user still receives grounded information if Gemini is briefly
             // unavailable, rate-limited, or returns an empty response.
-            answer = buildExtractiveFallback(results);
+            answer = facts.isEmpty()
+                    ? buildExtractiveFallback(results)
+                    : documentFactService.fallbackAnswer(facts, revealSensitive);
             answerMode = "extractive-fallback";
         }
 
