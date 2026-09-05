@@ -1,9 +1,8 @@
 import axios from "axios";
 
 const api = axios.create({
-     baseURL: "https://doclock-be.onrender.com/api"
+    baseURL: import.meta.env.VITE_API_BASE_URL
 });
-
 
 // =====================================================
 // REQUEST INTERCEPTOR
@@ -12,24 +11,18 @@ const api = axios.create({
 
 api.interceptors.request.use(
     (config) => {
-
-        const token =
-            localStorage.getItem("doclock_token");
+        const token = localStorage.getItem("doclock_token");
 
         if (token) {
-
-            config.headers.Authorization =
-                `Bearer ${token}`;
+            config.headers.Authorization = `Bearer ${token}`;
         }
 
         return config;
     },
-
     (error) => {
         return Promise.reject(error);
     }
 );
-
 
 // =====================================================
 // RESPONSE INTERCEPTOR
@@ -37,22 +30,11 @@ api.interceptors.request.use(
 // =====================================================
 
 api.interceptors.response.use(
-
     (response) => response,
-
     (error) => {
-
-        if (
-            error.response?.status === 401
-        ) {
-
-            localStorage.removeItem(
-                "doclock_token"
-            );
-
-            localStorage.removeItem(
-                "doclock_username"
-            );
+        if (error.response?.status === 401) {
+            localStorage.removeItem("doclock_token");
+            localStorage.removeItem("doclock_username");
 
             window.location.href = "/";
         }
@@ -60,6 +42,5 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
-
 
 export default api;

@@ -17,11 +17,6 @@ public class DocumentController {
 
     private final DocumentService documentService;
 
-
-    // ==========================================
-    // UPLOAD PDF
-    // ==========================================
-
  @PostMapping("/upload")
 public ResponseEntity<Document> uploadDocument(
         @RequestParam("file") MultipartFile file
@@ -36,10 +31,6 @@ public ResponseEntity<Document> uploadDocument(
 
     return ResponseEntity.ok(document);
 }
-
-    // ==========================================
-    // GET ALL DOCUMENTS
-    // ==========================================
 
     @GetMapping
     public ResponseEntity<List<Document>>

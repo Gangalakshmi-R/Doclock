@@ -1,72 +1,50 @@
 import { useState } from "react";
-import axios from "axios";
+import api from "../services/api";
 
 function Login({ onLogin }) {
-
-    const [username, setUsername] =
-        useState("");
-
-    const [password, setPassword] =
-        useState("");
-
-    const [error, setError] =
-        useState("");
-
-    const [loading, setLoading] =
-        useState(false);
-
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
 
     const handleLogin = async (event) => {
-
         event.preventDefault();
 
         setError("");
         setLoading(true);
 
         try {
+            const response = await api.post(
+                "/auth/login",
+                {
+                    username,
+                    password
+                }
+            );
 
-            const response =
-                await api.post(
-                        "/auth/login",
-                        {
-                            username,
-                            password
-                        }
-                    );
-
-
-
-            const token =
-                response.data.token;
-
+            const token = response.data.token;
 
             localStorage.setItem(
                 "doclock_token",
                 token
             );
 
-
             localStorage.setItem(
                 "doclock_username",
                 response.data.username
             );
 
-
             onLogin();
 
         } catch (error) {
-
-            console.error(
-                "Login failed:",
-                error
-            );
+            console.error("Login failed:", error);
+            console.error("Backend response:", error.response?.data);
 
             setError(
                 "Invalid username or password."
             );
 
         } finally {
-
             setLoading(false);
         }
     };
