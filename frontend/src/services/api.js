@@ -1,7 +1,11 @@
 import axios from "axios";
 
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const apiBaseUrl = (configuredApiBaseUrl || "https://doclock-be.onrender.com/api")
+    .replace(/\/$/, "");
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL
+    baseURL: apiBaseUrl
 });
 
 // =====================================================
@@ -32,7 +36,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        // A failed login is handled by Login so its error can be shown without
+        // forcing a page reload. All other unauthorized API calls mean an
+        // existing session is no longer usable.
+        const isLoginRequest = error.config?.url?.endsWith("/auth/login");
+
+        if (error.response?.status === 401 && !isLoginRequest) {
             localStorage.removeItem("doclock_token");
             localStorage.removeItem("doclock_username");
 

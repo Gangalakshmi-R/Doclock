@@ -40,9 +40,14 @@ function Login({ onLogin }) {
             console.error("Login failed:", error);
             console.error("Backend response:", error.response?.data);
 
-            setError(
-                "Invalid username or password."
-            );
+            if (!error.response) {
+                setError("Unable to reach the server. Please try again shortly.");
+            } else {
+                setError(
+                    error.response.data?.message ||
+                    "Invalid username or password."
+                );
+            }
 
         } finally {
             setLoading(false);

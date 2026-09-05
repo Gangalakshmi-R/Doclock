@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -36,42 +37,6 @@ public class AuthController {
         String username = request.get("username");
         String password = request.get("password");
 
-
-        // =================================================
-        // DEBUG INFORMATION
-        // =================================================
-
-        System.out.println(
-                "LOGIN REQUEST"
-        );
-
-        System.out.println(
-                "Received username: "
-                        + username
-        );
-
-        System.out.println(
-                "Configured username: "
-                        + configuredUsername
-        );
-
-        System.out.println(
-                "Username matches: "
-                        + configuredUsername.equals(username)
-        );
-
-        System.out.println(
-                "Password received: "
-                        + (password != null)
-        );
-
-        System.out.println(
-                "Configured password exists: "
-                        + (configuredPassword != null
-                        && !configuredPassword.isBlank())
-        );
-
-
         // =================================================
         // VALIDATE INPUT
         // =================================================
@@ -88,22 +53,23 @@ public class AuthController {
                     );
         }
 
+        if (configuredUsername == null || configuredUsername.isBlank()
+                || configuredPassword == null || configuredPassword.isBlank()) {
+            return ResponseEntity
+                    .status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("message", "Authentication is not configured on the server"));
+        }
+
 
         // =================================================
         // CHECK CREDENTIALS
         // =================================================
 
         boolean usernameMatches =
-                configuredUsername.equals(username);
+                Objects.equals(configuredUsername, username);
 
         boolean passwordMatches =
-                configuredPassword.equals(password);
-
-
-        System.out.println(
-                "Password matches: "
-                        + passwordMatches
-        );
+                Objects.equals(configuredPassword, password);
 
 
         if (!usernameMatches || !passwordMatches) {
