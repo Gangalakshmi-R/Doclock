@@ -24,7 +24,7 @@ public class SemanticSearchService {
     private final EmbeddingService embeddingService;
     private final DocumentChunkRepository documentChunkRepository;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<Map<String, Object>> search(String question, int limit) {
         if (question == null || question.isBlank() || limit < 1) return List.of();
 
@@ -34,7 +34,14 @@ public class SemanticSearchService {
 
         for (DocumentChunk chunk : documentChunkRepository.findAll()) {
             if (chunk.getDocument().getStatus() != DocumentStatus.PROCESSED) continue;
-            double semantic = cosineSimilarity(queryEmbedding, deserialize(chunk.getEmbedding()));
+            float[] chunkEmbedding = deserialize(chunk.getEmbedding());
+            // Existing documents from before embedding-on-chunk storage are
+            // upgraded lazily on their first question, without re-uploading.
+            if (chunkEmbedding.length == 0) {
+                chunkEmbedding = embeddingService.generateEmbedding(chunk.getContent());
+                chunk.setEmbedding(serialize(chunkEmbedding));
+            }
+            double semantic = cosineSimilarity(queryEmbedding, chunkEmbedding);
             double lexical = lexicalScore(queryTerms, terms(chunk.getContent()));
             // Dense vectors handle paraphrases; lexical matching preserves names and dates.
             double relevance = (semantic * 0.80) + (lexical * 0.20);
@@ -68,6 +75,15 @@ public class SemanticSearchService {
         } catch (NumberFormatException exception) {
             return new float[0];
         }
+    }
+
+    private String serialize(float[] embedding) {
+        StringBuilder value = new StringBuilder();
+        for (int index = 0; index < embedding.length; index++) {
+            if (index > 0) value.append(',');
+            value.append(embedding[index]);
+        }
+        return value.toString();
     }
 
     private double cosineSimilarity(float[] left, float[] right) {

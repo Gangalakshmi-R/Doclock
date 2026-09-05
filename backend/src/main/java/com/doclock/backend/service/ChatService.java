@@ -213,12 +213,16 @@ public class ChatService {
         // while Gemini sees the actual question + history.
         // =================================================
 
-        String answer =
-                llmService.generateAnswer(
-                        question,
-                        context.toString(),
-                        history.toString()
-                );
+        String answer;
+        String answerMode = "generative-rag";
+        try {
+            answer = llmService.generateAnswer(question, context.toString(), history.toString());
+        } catch (Exception exception) {
+            // The user still receives grounded information if Gemini is briefly
+            // unavailable, rate-limited, or returns an empty response.
+            answer = buildExtractiveFallback(results);
+            answerMode = "extractive-fallback";
+        }
 
 
         // =================================================
@@ -290,6 +294,9 @@ public class ChatService {
                 "answer",
                 answer,
 
+                "answerMode",
+                answerMode,
+
                 "sources",
                 sources
         );
@@ -343,22 +350,17 @@ public class ChatService {
                         totalMessages - 4
                 );
 
-        for (
-                int i = startIndex;
-                i < totalMessages;
-                i++
-        ) {
+        for (int i = startIndex; i < totalMessages; i++) {
 
             ChatMessage message =
                     messages.get(i);
 
-            query.append(
-                    message.getContent()
-            );
-
-            query.append(
-                    " "
-            );
+            // Prior user turns carry intent; assistant text can contain a
+            // plausible but incorrect answer and must not steer retrieval.
+            if (message.getRole() == MessageRole.USER
+                    && !message.getContent().equals(currentQuestion)) {
+                query.append(message.getContent()).append(" ");
+            }
         }
 
 
@@ -427,5 +429,15 @@ public class ChatService {
         chatMessageRepository.save(
                 assistantMessage
         );
+    }
+
+    private String buildExtractiveFallback(List<Map<String, Object>> results) {
+        Map<String, Object> bestSource = results.getFirst();
+        String source = String.valueOf(bestSource.get("documentName"));
+        String content = String.valueOf(bestSource.get("content")).replaceAll("\\s+", " ").trim();
+        String excerpt = content.length() > 700 ? content.substring(0, 700) + "..." : content;
+        return "I found this relevant passage in " + source + ":\n\n"
+                + excerpt
+                + "\n\n[Source: " + source + ", chunk " + bestSource.get("chunkNumber") + "]";
     }
 }

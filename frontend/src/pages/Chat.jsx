@@ -122,6 +122,7 @@ function Chat({
           content: data.answer || "I couldn't generate an answer.",
           createdAt: new Date().toISOString(),
           sources: Array.isArray(data.sources) ? data.sources : [],
+          answerMode: data.answerMode,
         },
       ]);
 
@@ -218,6 +219,12 @@ function Chat({
                   </div>
 
                   <div className="message-bubble">{message.content}</div>
+
+                  {message.answerMode === "extractive-fallback" && (
+                    <p className="answer-note">
+                      Showing the most relevant document passage while AI generation reconnects.
+                    </p>
+                  )}
 
                   {message.sources?.length > 0 && (
                     <div className="message-sources">
