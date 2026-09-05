@@ -1,5 +1,6 @@
 package com.doclock.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,6 +24,7 @@ public class ChatMessage {
             name = "conversation_id",
             nullable = false
     )
+    @JsonIgnore
     private ChatConversation conversation;
 
     @Enumerated(EnumType.STRING)
